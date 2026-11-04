@@ -1,10 +1,10 @@
 # 5G Network Traffic Simulator — API Edition
 
-A Python + Streamlit educational simulation that fetches **historical network-flow records** from a public REST API and processes them through a Trie, circular ring buffer, least-loaded server assignment, and Min-Heap scheduler.
+A Python + Streamlit educational simulation that fetches **network flow records** from a public REST API and pushes them through a Trie, circular ring buffer, least-loaded server assignment, and Min-Heap scheduler.
 
 ## Important: what the API returns
 
-This project uses the Hugging Face Dataset Viewer REST API to fetch CIC-IDS-2017 flow rows. These rows are **aggregated network-flow records**, not live individual packets or raw PCAP frames. The app wraps each record in a `Packet` object as a work item for the data-structure demonstration. It preserves the dataset's original `Label` separately from the simulated Trie traffic class.
+This project makes use of the Hugging Face Dataset Viewer REST API and fetches CIC-IDS-2017 flow rows. These are **aggregated network flow records** and not live packet captures. The app packages each row in a `Packet` object as a work item for the data structures demo. It also stores the `Label` field from the dataset separately from the simulated Trie traffic class.
 
 - Dataset: `transformer112/cicids2017-ids-dataset`
 - Configuration: `default`
@@ -17,24 +17,13 @@ This project uses the Hugging Face Dataset Viewer REST API to fetch CIC-IDS-2017
 | File | Responsibility |
 |---|---|
 | `app.py` | Windows 95-inspired Streamlit dashboard |
-| `packet.py` | Packet/flow work-item model |
-| `api_client.py` | Calls REST API and converts dataset rows |
-| `trie.py` | Binary IPv4 Trie with longest-prefix matching |
-| `ringbuffer.py` | 10-entry FIFO circular buffer |
+| `packet.py` | Packet/flow work item model |
+| `api_client.py` | Calls REST API and transforms dataset rows |
+| `trie.py` | Binary IPv4 Trie with longest prefix matching |
+| `ringbuffer.py` | 10-slot FIFO circular buffer |
 | `load_balancer.py` | Least-loaded simulated server assignment |
 | `qos_scheduler.py` | Min-Heap priority scheduler |
-| `simulation.py` | Connects ingestion and processing stages |
-
-## Run on Windows
-
-From PowerShell in the project directory:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m streamlit run app.py
-```
+| `simulation.py`
 
 ## Demo workflow
 
@@ -45,10 +34,6 @@ python -m venv .venv
 5. Fetch another page to continue from the next API offset.
 
 The ring buffer remains fixed at 10 entries. Additional API rows are retained in a separate FIFO backlog rather than discarded.
-
-## Trie rule note
-
-The sample prefix rules in `trie.py` are illustrative classroom mappings, not official standardized 5G slice definitions. Change them to match an IP-to-class mapping specified by your instructor. The dataset's original label is always kept in `Original Dataset Label`.
 
 ## Data source references
 
