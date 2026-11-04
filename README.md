@@ -16,7 +16,7 @@ This project makes use of the Hugging Face Dataset Viewer REST API and fetches C
 
 | File | Responsibility |
 |---|---|
-| `app.py` | Windows 95-inspired Streamlit dashboard |
+| `app.py` | Streamlit dashboard |
 | `packet.py` | Packet/flow work item model |
 | `api_client.py` | Calls REST API and transforms dataset rows |
 | `trie.py` | Binary IPv4 Trie with longest prefix matching |
