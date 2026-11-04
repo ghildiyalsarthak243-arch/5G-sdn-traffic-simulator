@@ -2,403 +2,159 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from api_client import DATASET_ID, DATASET_URL
 from simulation import NetworkSimulation
 
-st.set_page_config(
-    page_title="5G Network Traffic Simulator",
-    page_icon="🖥️",
-    layout="wide",
-)
+st.set_page_config(page_title="5G Network Traffic Simulator", page_icon="📡", layout="wide")
 
-# Windows 95-inspired styling. Simulation logic stays in simulation.py and its modules.
-st.markdown(
-    """
-    <style>
-    :root {
-        --win-gray: #c0c0c0;
-        --win-light: #ffffff;
-        --win-mid: #dfdfdf;
-        --win-dark: #808080;
-        --win-black: #000000;
-        --win-blue: #000080;
-        --win-teal: #008080;
-    }
+# Windows 95-inspired UI. Simulation/data logic stays in separate modules.
+st.markdown("""
+<style>
+html, body, [data-testid="stAppViewContainer"] { background:#008080 !important; color:#111 !important; font-family:Tahoma,Arial,sans-serif !important; }
+[data-testid="stHeader"] { background:#008080 !important; }
+.block-container { max-width:1500px; padding-top:1rem; padding-bottom:2rem; }
+[data-testid="stSidebar"] { background:#c0c0c0 !important; border-right:2px solid #fff; }
+[data-testid="stSidebar"] * { color:#111 !important; }
+.win-title { background:#000080; color:#fff; padding:8px 12px; font-weight:bold; border:2px solid; border-color:#fff #404040 #404040 #fff; margin-bottom:0; }
+.win-panel { background:#c0c0c0; color:#111; padding:12px; border:2px solid; border-color:#fff #404040 #404040 #fff; margin-bottom:12px; }
+.win-caption { color:#222; font-size:12px; margin-top:5px; }
+div.stButton > button, div.stDownloadButton > button { background:#c0c0c0 !important; color:#111 !important; border:2px solid !important; border-color:#fff #404040 #404040 #fff !important; border-radius:0 !important; box-shadow:1px 1px 0 #000 !important; font-family:Tahoma,Arial,sans-serif !important; font-weight:600 !important; }
+div.stButton > button:active { border-color:#404040 #fff #fff #404040 !important; box-shadow:none !important; }
+[data-testid="stMetric"] { background:#c0c0c0; padding:10px; border:2px solid; border-color:#fff #404040 #404040 #fff; }
+[data-testid="stMetric"] label, [data-testid="stMetric"] div { color:#111 !important; }
+.stTabs [data-baseweb="tab-list"] { gap:2px; background:#c0c0c0; padding:5px 5px 0; }
+.stTabs [data-baseweb="tab"] { background:#c0c0c0; border:2px solid; border-color:#fff #404040 #404040 #fff; border-radius:0; color:#111 !important; padding:5px 12px; }
+.stTabs [aria-selected="true"] { background:#fff !important; }
+[data-testid="stDataFrame"] { background:#fff; border:2px inset #aaa; }
+footer { visibility:hidden; }
+</style>
+""", unsafe_allow_html=True)
 
-    html, body, [class*="css"] {
-        font-family: Tahoma, "MS Sans Serif", Arial, sans-serif !important;
-        color: #000 !important;
-    }
-    .stApp {
-        background: var(--win-teal) !important;
-        color: #000 !important;
-    }
-    header[data-testid="stHeader"] {
-        background: transparent !important;
-    }
-    div[data-testid="stToolbar"] { visibility: hidden; height: 0; }
-    div[data-testid="stMainBlockContainer"] {
-        background: var(--win-gray) !important;
-        max-width: 1440px !important;
-        margin: 18px auto 42px auto !important;
-        padding: 0.8rem 1rem 1.2rem 1rem !important;
-        border-top: 2px solid var(--win-light);
-        border-left: 2px solid var(--win-light);
-        border-right: 2px solid #404040;
-        border-bottom: 2px solid #404040;
-        box-shadow: 1px 1px 0 #000;
-    }
-
-    /* Faux application title bar and menu strip */
-    .win-titlebar {
-        background: var(--win-blue);
-        color: #fff !important;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 4px 5px 4px 8px;
-        min-height: 28px;
-        font-weight: bold;
-        font-size: 14px;
-        margin: -2px -2px 0 -2px;
-    }
-    .win-title-left { display: flex; align-items: center; gap: 7px; }
-    .win-app-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 18px;
-        height: 18px;
-        background: #c0c0c0;
-        color: #000080;
-        border-top: 1px solid #fff;
-        border-left: 1px solid #fff;
-        border-right: 1px solid #404040;
-        border-bottom: 1px solid #404040;
-        font-size: 12px;
-    }
-    .win-controls { display: flex; gap: 3px; }
-    .win-control {
-        width: 18px;
-        height: 17px;
-        line-height: 14px;
-        text-align: center;
-        color: #000 !important;
-        background: #c0c0c0;
-        border-top: 2px solid #fff;
-        border-left: 2px solid #fff;
-        border-right: 2px solid #404040;
-        border-bottom: 2px solid #404040;
-        font-family: Arial, sans-serif;
-        font-weight: bold;
-    }
-    .win-menubar {
-        background: var(--win-gray);
-        padding: 6px 4px 8px 4px;
-        color: #000;
-        border-bottom: 1px solid #808080;
-        font-size: 13px;
-        word-spacing: 13px;
-    }
-    .win-subheading { padding: 10px 4px 3px 4px; }
-    .win-subheading h1 {
-        color: #000 !important;
-        font-family: Tahoma, Arial, sans-serif !important;
-        font-size: 24px !important;
-        font-weight: bold !important;
-        margin: 0 0 3px 0 !important;
-    }
-    .win-subheading p { color: #222 !important; margin: 0 0 8px 0; font-size: 13px; }
-
-    /* Classic raised/recessed controls */
-    [data-testid="stSidebar"] {
-        background: var(--win-gray) !important;
-        border-right: 2px solid #808080;
-    }
-    [data-testid="stSidebar"] > div:first-child { background: var(--win-gray) !important; }
-    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2,
-    [data-testid="stSidebar"] h3, [data-testid="stSidebar"] p,
-    [data-testid="stSidebar"] label { color: #000 !important; }
-
-    div.stButton > button, div[data-testid="stDownloadButton"] > button {
-        background: #c0c0c0 !important;
-        color: #000 !important;
-        border-radius: 0 !important;
-        border-top: 2px solid #fff !important;
-        border-left: 2px solid #fff !important;
-        border-right: 2px solid #404040 !important;
-        border-bottom: 2px solid #404040 !important;
-        box-shadow: inset 1px 1px #dfdfdf, inset -1px -1px #808080 !important;
-        font-weight: normal !important;
-        min-height: 34px;
-    }
-    div.stButton > button:hover, div[data-testid="stDownloadButton"] > button:hover {
-        color: #000 !important;
-        border-top-color: #fff !important;
-        border-left-color: #fff !important;
-        background: #d4d4d4 !important;
-    }
-    div.stButton > button:active {
-        border-top: 2px solid #404040 !important;
-        border-left: 2px solid #404040 !important;
-        border-right: 2px solid #fff !important;
-        border-bottom: 2px solid #fff !important;
-        box-shadow: inset 1px 1px #808080 !important;
-    }
-    div[data-testid="stMetric"] {
-        background: #c0c0c0 !important;
-        border-radius: 0 !important;
-        padding: 10px 12px !important;
-        border-top: 2px solid #808080;
-        border-left: 2px solid #808080;
-        border-right: 2px solid #fff;
-        border-bottom: 2px solid #fff;
-        box-shadow: inset 1px 1px #404040;
-    }
-    [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] p,
-    [data-testid="stMetricValue"], [data-testid="stMetricValue"] div,
-    [data-testid="stMetricDelta"] { color: #000 !important; }
-    [data-testid="stMetricValue"] { font-family: Tahoma, Arial, sans-serif !important; }
-
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 2px;
-        background: transparent;
-        border-bottom: 2px solid #808080;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background: #c0c0c0 !important;
-        color: #000 !important;
-        border-radius: 0 !important;
-        border-top: 2px solid #fff !important;
-        border-left: 2px solid #fff !important;
-        border-right: 2px solid #808080 !important;
-        padding: 6px 12px !important;
-    }
-    .stTabs [aria-selected="true"] {
-        background: #dfdfdf !important;
-        color: #000 !important;
-        font-weight: bold !important;
-    }
-    .stTabs [data-baseweb="tab-highlight"] { background: #000080 !important; }
-    .stTabs [data-baseweb="tab-border"] { background: #808080 !important; }
-
-    input, textarea, [data-baseweb="select"] > div {
-        color: #000 !important;
-        background: #fff !important;
-        border-radius: 0 !important;
-        border-top: 2px solid #404040 !important;
-        border-left: 2px solid #404040 !important;
-        border-right: 2px solid #fff !important;
-        border-bottom: 2px solid #fff !important;
-    }
-    div[data-testid="stDataFrame"] {
-        background: #fff !important;
-        border-top: 2px solid #808080;
-        border-left: 2px solid #808080;
-        border-right: 2px solid #fff;
-        border-bottom: 2px solid #fff;
-    }
-    div[data-testid="stAlert"] {
-        background: #ffffe1 !important;
-        color: #000 !important;
-        border-radius: 0 !important;
-        border: 1px solid #808080 !important;
-    }
-    div[data-testid="stAlert"] p, div[data-testid="stAlert"] svg { color: #000 !important; }
-    h1, h2, h3, h4, p, label, .stCaption, [data-testid="stMarkdownContainer"] {
-        color: #000;
-    }
-    h2, h3 { font-family: Tahoma, Arial, sans-serif !important; font-weight: bold !important; }
-    hr { border-color: #808080 !important; }
-    .win-statusbar {
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-        color: #000;
-        font-size: 12px;
-        margin-top: 16px;
-        padding: 5px 7px;
-        background: #c0c0c0;
-        border-top: 1px solid #808080;
-        border-left: 1px solid #808080;
-        border-right: 1px solid #fff;
-        border-bottom: 1px solid #fff;
-    }
-    @media (max-width: 700px) {
-        div[data-testid="stMainBlockContainer"] { margin: 5px !important; padding: 8px !important; }
-        .win-subheading h1 { font-size: 20px !important; }
-        .win-menubar { word-spacing: 5px; }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-if ("simulation" not in st.session_state
-        or not hasattr(st.session_state.simulation, "backlog")):
+if "simulation" not in st.session_state:
     st.session_state.simulation = NetworkSimulation()
 sim = st.session_state.simulation
 
+st.markdown('<div class="win-title">📡 5G Network Traffic Simulator — API Edition</div>', unsafe_allow_html=True)
 st.markdown(
-    """
-    <div class="win-titlebar">
-      <div class="win-title-left"><span class="win-app-icon">5G</span><span>5G Network Traffic Simulator</span></div>
-      <div class="win-controls"><span class="win-control">_</span><span class="win-control">□</span><span class="win-control">×</span></div>
-    </div>
-    <div class="win-menubar">File Edit View Simulation Help</div>
-    <div class="win-subheading">
-      <h1>5G Network Traffic Simulator</h1>
-      <p>Packet classification · Circular buffering · Load balancing · QoS scheduling</p>
-    </div>
-    """,
+    '<div class="win-panel"><b>Network Operations Center</b><br>'
+    'Dataset API → IPv4 Trie → Circular Ring Buffer → Load Balancer → QoS Min-Heap'
+    '<div class="win-caption">Historical network-flow records are imported from an external API. This is a software simulation, not live 5G traffic.</div></div>',
     unsafe_allow_html=True,
 )
-st.caption("Educational simulation only — no real 5G network is connected and no real packets are transmitted.")
 
 with st.sidebar:
-    st.markdown("### Simulation Controls")
-    packet_count = st.slider("Packets to generate", min_value=1, max_value=50, value=5)
-    if st.button("Generate packets", use_container_width=True):
-        accepted, rejected = sim.generate(packet_count)
-        st.session_state.last_message = (
-            f"Generated {packet_count} packet(s): {accepted} currently in the ring buffer; "
-            f"{rejected} safely waiting in the backlog. The buffer refills after dispatch."
-        )
+    st.markdown('<div class="win-title">Control Panel</div>', unsafe_allow_html=True)
+    st.markdown('<div class="win-panel"><b>External data source</b><br>Hugging Face Dataset Viewer API</div>', unsafe_allow_html=True)
+    page_size = st.select_slider("Records per API request", options=[5, 10, 20, 25, 50, 75, 100], value=25)
+    if st.button("↓ Fetch records from API", use_container_width=True):
+        with st.spinner("Contacting dataset API..."):
+            try:
+                result = sim.fetch_from_api(page_size)
+                st.session_state.notice = (
+                    f"Imported {result['imported']} valid flow record(s). "
+                    f"{result['buffered']} buffered; {result['backlogged']} in backlog."
+                )
+                st.session_state.notice_kind = "success"
+            except Exception as exc:
+                st.session_state.notice = str(exc)
+                st.session_state.notice_kind = "error"
         st.rerun()
-    if st.button("Dispatch buffer to servers", use_container_width=True):
+
+    if st.button("⇄ Dispatch buffer + backlog", use_container_width=True):
         moved = sim.dispatch()
-        st.session_state.last_message = f"Dispatched {moved} packet(s) to the QoS scheduler."
+        st.session_state.notice = f"Dispatched {moved} record(s) into the QoS Min-Heap."
+        st.session_state.notice_kind = "success"
         st.rerun()
-    if st.button("Process next packet", use_container_width=True):
+
+    if st.button("▶ Process next record", use_container_width=True):
         packet = sim.process_next()
-        st.session_state.last_message = (
-            f"Processed {packet.packet_id} ({packet.traffic_type})."
-            if packet else "No packets in the QoS scheduler."
-        )
+        st.session_state.notice = f"Processed {packet.packet_id}." if packet else "No records available to process."
+        st.session_state.notice_kind = "info"
         st.rerun()
-    if st.button("Process all pending", use_container_width=True):
-        dispatched, done = sim.process_all_pending()
-        st.session_state.last_message = (
-            f"Dispatched {dispatched} packet(s) from the buffer/backlog and "
-            f"processed {len(done)} packet(s) by priority."
-        )
+
+    if st.button("▶▶ Process all pending", use_container_width=True):
+        completed = sim.process_all()
+        st.session_state.notice = f"Processed {len(completed)} pending record(s)."
+        st.session_state.notice_kind = "success"
         st.rerun()
-    if st.button("Reset simulation", use_container_width=True):
+
+    if st.button("↻ Reset session", use_container_width=True):
         sim.reset()
-        st.session_state.last_message = "Simulation reset."
+        st.session_state.notice = "Simulation reset. API paging returned to row zero."
+        st.session_state.notice_kind = "info"
         st.rerun()
+
     st.divider()
-    st.markdown("**Processing pipeline**")
-    st.caption("Generate → Trie → Ring Buffer → Load Balancer → Min-Heap → Process")
+    st.markdown("**API paging status**")
+    st.caption(f"Next row offset: {sim.api_offset:,}")
+    if sim.api_total_rows:
+        st.caption(f"Dataset Viewer rows: {sim.api_total_rows:,}")
+    if not sim.has_more_api_rows:
+        st.success("End of available dataset rows reached.")
 
-if st.session_state.get("last_message"):
-    st.info(st.session_state.last_message)
+if st.session_state.get("notice"):
+    kind = st.session_state.get("notice_kind", "info")
+    if kind == "error":
+        st.error(st.session_state.notice)
+    elif kind == "success":
+        st.success(st.session_state.notice)
+    else:
+        st.info(st.session_state.notice)
 
+total, buffered, backlog, queued, processed = len(sim.packets), len(sim.buffer), len(sim.backlog), len(sim.scheduler), len(sim.processed)
 m1, m2, m3, m4, m5 = st.columns(5)
-m1.metric("Total packets", len(sim.packets))
-m2.metric("In ring buffer", len(sim.buffer), f"Capacity {sim.buffer.capacity}")
-m3.metric("Backlog", len(sim.backlog))
-m4.metric("In QoS heap", len(sim.scheduler))
-m5.metric("Processed", len(sim.processed))
+m1.metric("Imported records", total)
+m2.metric("Ring buffer", f"{buffered}/10")
+m3.metric("Backlog", backlog)
+m4.metric("QoS Min-Heap", queued)
+m5.metric("Processed", processed)
 
 left, right = st.columns([1.15, 1])
 with left:
-    st.subheader("Packet Traffic")
+    st.markdown('<div class="win-title">Traffic Classes (Trie)</div>', unsafe_allow_html=True)
     if sim.packets:
-        df = pd.DataFrame(sim.packet_rows())
-        counts = df["Type"].value_counts().rename_axis("Traffic Type").reset_index(name="Packets")
-        fig = px.bar(
-            counts,
-            x="Traffic Type",
-            y="Packets",
-            color="Traffic Type",
-            color_discrete_map={
-                "Emergency": "#ff0000",
-                "High Data": "#ff8000",
-                "Smart Devices": "#d6b600",
-                "Normal": "#008000",
-            },
-        )
-        fig.update_layout(
-            template="plotly_white",
-            paper_bgcolor="#c0c0c0",
-            plot_bgcolor="#ffffff",
-            font=dict(family="Tahoma, Arial, sans-serif", color="#000000", size=12),
-            margin=dict(l=10, r=10, t=20, b=10),
-            showlegend=False,
-            xaxis=dict(showgrid=False, linecolor="#000000", mirror=True),
-            yaxis=dict(gridcolor="#d0d0d0", linecolor="#000000", mirror=True),
-        )
+        frame = pd.DataFrame(sim.packet_rows())
+        counts = frame["Traffic Class (Trie)"].value_counts().rename_axis("Traffic Class").reset_index(name="Records")
+        fig = px.bar(counts, x="Traffic Class", y="Records", color="Traffic Class", color_discrete_map={"Emergency":"#c00000", "High Data":"#e87500", "Smart Devices":"#b49a00", "Normal":"#16833c"})
+        fig.update_layout(template="plotly_white", paper_bgcolor="#c0c0c0", plot_bgcolor="#fff", margin=dict(l=10,r=10,t=15,b=10), showlegend=False, font=dict(family="Tahoma",color="#111"))
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("Generate packets to populate the traffic chart.")
-
+        st.info("Fetch records from the API to populate the chart.")
 with right:
-    st.subheader("Server Workload")
-    loads = pd.DataFrame(
-        [{"Server": name, "Pending Packets": load} for name, load in sim.load_balancer.server_loads.items()]
-    )
-    fig = px.bar(
-        loads,
-        x="Server",
-        y="Pending Packets",
-        color="Server",
-        color_discrete_sequence=["#000080", "#008080", "#800080"],
-    )
-    fig.update_layout(
-        template="plotly_white",
-        paper_bgcolor="#c0c0c0",
-        plot_bgcolor="#ffffff",
-        font=dict(family="Tahoma, Arial, sans-serif", color="#000000", size=12),
-        margin=dict(l=10, r=10, t=20, b=10),
-        showlegend=False,
-        xaxis=dict(showgrid=False, linecolor="#000000", mirror=True),
-        yaxis=dict(gridcolor="#d0d0d0", linecolor="#000000", mirror=True),
-    )
+    st.markdown('<div class="win-title">Pending Server Workload</div>', unsafe_allow_html=True)
+    server_frame = pd.DataFrame([{"Server": name, "Pending Records": count} for name, count in sim.load_balancer.server_loads.items()])
+    fig = px.bar(server_frame, x="Server", y="Pending Records", color="Server", color_discrete_sequence=["#000080", "#008080", "#808000"])
+    fig.update_layout(template="plotly_white", paper_bgcolor="#c0c0c0", plot_bgcolor="#fff", margin=dict(l=10,r=10,t=15,b=10), showlegend=False, font=dict(family="Tahoma",color="#111"))
     st.plotly_chart(fig, use_container_width=True)
 
-st.divider()
-t1, t2, t3, t4, t5 = st.tabs(["All Packets", "Ring Buffer", "Backlog", "QoS Heap", "Activity Log"])
-with t1:
-    st.subheader("Packet Records")
+st.markdown('<div class="win-title">Flow Record Processing Workspace</div>', unsafe_allow_html=True)
+tab_all, tab_buffer, tab_backlog, tab_heap, tab_log, tab_source = st.tabs(["All Records", "Ring Buffer", "Backlog", "QoS Min-Heap", "Activity Log", "API Source"])
+with tab_all:
     if sim.packets:
         st.dataframe(pd.DataFrame(sim.packet_rows()), use_container_width=True, hide_index=True)
     else:
-        st.write("No packets yet. Use Generate packets in the sidebar.")
-with t2:
-    st.subheader(f"Circular Ring Buffer ({len(sim.buffer)}/{sim.buffer.capacity})")
-    st.caption("FIFO storage with wrap-around indices. The ring buffer holds at most 10 packets; excess packets are preserved in the backlog and automatically fill slots after dispatch.")
-    buffer_packets = sim.waiting_packets()
-    if buffer_packets:
-        st.dataframe(pd.DataFrame([packet.to_dict() for packet in buffer_packets]), use_container_width=True, hide_index=True)
-    else:
-        st.info("The ring buffer is empty.")
-with t3:
-    st.subheader(f"Incoming Backlog ({len(sim.backlog)})")
-    st.caption("Packets beyond the fixed ring-buffer capacity are kept here in FIFO order. Dispatching a batch frees buffer slots and automatically moves the oldest backlog packets into the buffer.")
-    backlog_packets = sim.backlog_packets()
-    if backlog_packets:
-        st.dataframe(pd.DataFrame([packet.to_dict() for packet in backlog_packets]), use_container_width=True, hide_index=True)
-    else:
-        st.info("No packets waiting in the backlog.")
-with t4:
-    st.subheader("Min-Heap Priority Queue")
-    st.caption("Priority 1 is highest. Equal priorities are processed in arrival order. Use Process all pending to move every backlog batch into the heap before processing, so priority order is respected across all packets.")
-    heap_packets = sim.queued_packets()
-    if heap_packets:
-        st.dataframe(pd.DataFrame([packet.to_dict() for packet in heap_packets]), use_container_width=True, hide_index=True)
-    else:
-        st.info("The QoS heap is empty. Dispatch buffered packets to populate it.")
-with t5:
-    st.subheader("Recent Activity")
-    if sim.activity:
-        for entry in sim.activity[:30]:
-            st.markdown(f"- {entry}")
-    else:
-        st.info("No activity yet.")
+        st.info("No records imported yet. Use Fetch records from API.")
+with tab_buffer:
+    st.caption(f"Fixed-capacity FIFO circular buffer: {buffered}/{sim.buffer.capacity} entries.")
+    items = sim.waiting_packets()
+    st.dataframe(pd.DataFrame([p.to_dict() for p in items]), use_container_width=True, hide_index=True) if items else st.info("Ring buffer is empty.")
+with tab_backlog:
+    st.caption("Overflow records are retained in a separate FIFO backlog; they are not dropped when the 10-slot ring buffer is full.")
+    items = sim.backlog_packets()
+    st.dataframe(pd.DataFrame([p.to_dict() for p in items]), use_container_width=True, hide_index=True) if items else st.info("Backlog is empty.")
+with tab_heap:
+    st.caption("Min-Heap: priority 1 is processed first; arrival order breaks ties.")
+    items = sim.queued_packets()
+    st.dataframe(pd.DataFrame([p.to_dict() for p in items]), use_container_width=True, hide_index=True) if items else st.info("QoS heap is empty. Dispatch records to populate it.")
+with tab_log:
+    for line in sim.activity[:40]:
+        st.markdown(f"- {line}")
+with tab_source:
+    st.markdown(f"**Dataset:** [{DATASET_ID}]({DATASET_URL})")
+    st.markdown("**REST endpoint:** `https://datasets-server.huggingface.co/rows`")
+    st.markdown("**Configuration / split:** `default` / `train`")
+    st.markdown("The API returns historical flow-level feature rows. Source IP, Destination IP, Destination Port, flow measurements and the original Label are retained. Each row is represented as a Packet work item for the data-structure demonstration; it is not reconstructed as an individual live packet.")
+    st.markdown("Trie categories are illustrative IP-prefix rules in `trie.py`, not official 5G slice assignments. The original dataset label is preserved separately.")
+    st.markdown("The Dataset Viewer `/rows` API supports pages of up to 100 rows. The app advances the offset after each successful fetch.")
 
-st.markdown(
-    '<div class="win-statusbar"><span>Ready</span><span>Simulation only · IPv4</span><span>Buffer: '
-    + str(len(sim.buffer)) + '/' + str(sim.buffer.capacity) + '</span><span>Backlog: ' + str(len(sim.backlog)) + '</span></div>',
-    unsafe_allow_html=True,
-)
-st.caption("Traffic categories are illustrative simulation labels, not guaranteed mappings to standardized 5G network slices.")
+st.markdown('<div class="win-panel"><b>Status:</b> API-backed historical flow-record simulator. No live packet capture, injection, or real 5G routing is performed.</div>', unsafe_allow_html=True)
